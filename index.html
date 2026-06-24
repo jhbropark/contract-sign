@@ -210,8 +210,7 @@ document.getElementById("autoSig").onclick=()=>{
       cnt++;
     });
     renderPage();
-    const bd=document.getElementById("sigBadge"); bd.textContent="서명 "+cnt+"곳 삽입됨"; bd.classList.remove("gray");
-    alert(cnt+"곳의 서명란에 서명을 자동 삽입했습니다. 페이지(5·9 등)를 넘겨 확인하고, 필요하면 다운로드하세요.");
+    const bd=document.getElementById("sigBadge"); bd.textContent="서명 "+cnt+"곳 자동삽입됨 (5·9p)"; bd.classList.remove("gray");
   };
   tmp.src=sigDataURL;
 };
