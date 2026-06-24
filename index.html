@@ -118,6 +118,7 @@ document.querySelectorAll(".tab").forEach(t=>{t.onclick=()=>{
   const id=t.dataset.tab;
   document.getElementById("tab-sign").classList.toggle("hidden",id!=="sign");
   document.getElementById("tab-pdf").classList.toggle("hidden",id!=="pdf");
+  if(id==="sign"){ setTimeout(fitCanvas,0); }
 };});
 
 /* ---- 서명 패드 ---- */
@@ -204,14 +205,18 @@ window.addEventListener("pointerup",()=>mode=null);})();
 function commitOverlay(){if(overlay.classList.contains("hidden"))return;const left=parseFloat(overlay.style.left),top=parseFloat(overlay.style.top),w=parseFloat(overlay.style.width),h=parseFloat(overlay.style.height);const xPt=left/renderScale,wPt=w/renderScale,hPt=h/renderScale,pageH=pdfCanvas.height/renderScale,yPt=pageH-(top/renderScale)-hPt;(placements[pageNum]=placements[pageNum]||[]).push({x:xPt,y:yPt,w:wPt,h:hPt,dataURL:sigDataURL});overlay.classList.add("hidden");}
 
 /* 텍스트를 투명 PNG로 (pdf-lib 한글 폰트 문제 회피) */
-function textToPng(text,hPx){
-  const scale=4, fpx=hPx*scale;
-  const m=document.createElement("canvas").getContext("2d");
+function makeText(text,fontPt){
+  const SCALE=4, fpx=fontPt*SCALE;
   const font='600 '+fpx+'px "Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif';
-  m.font=font; const w=Math.max(1,Math.ceil(m.measureText(text).width));
-  const c=document.createElement("canvas"); c.width=w; c.height=Math.ceil(fpx*1.35);
+  const mctx=document.createElement("canvas").getContext("2d"); mctx.font=font;
+  const m=mctx.measureText(text);
+  const asc=Math.ceil((m.actualBoundingBoxAscent||fpx*0.8))+2;
+  const desc=Math.ceil((m.actualBoundingBoxDescent||fpx*0.2))+2;
+  const w=Math.max(1,Math.ceil(m.width)+2);
+  const c=document.createElement("canvas"); c.width=w; c.height=asc+desc;
   const cx=c.getContext("2d"); cx.font=font; cx.fillStyle="#0a1b66"; cx.textBaseline="alphabetic";
-  cx.fillText(text,0,fpx); return {url:c.toDataURL("image/png"),w:c.width,h:c.height};
+  cx.fillText(text,1,asc);
+  return {url:c.toDataURL("image/png"), wpt:w/SCALE, hpt:(asc+desc)/SCALE, descPt:desc/SCALE};
 }
 
 document.getElementById("clearForm").onclick=()=>{
@@ -232,13 +237,14 @@ document.getElementById("downloadPdf").onclick=async()=>{
     if(!v) continue;
     const page=pages[b.pg];
     const blankH=b.bottom-b.top;            // pt
-    const t=textToPng(v, Math.max(9, blankH*1.05));
-    const png=await doc.embedPng(await fetch(t.url).then(r=>r.arrayBuffer()));
-    let drawH=blankH*1.15, drawW=drawH*(t.w/t.h);
-    const maxW=(b.x1-b.x0)*1.15;
-    if(drawW>maxW){const k=maxW/drawW;drawW=maxW;drawH=drawH*k;}
-    const y=b.ph-b.bottom+1;
-    page.drawImage(png,{x:b.x0,y:y,width:drawW,height:drawH});
+    const fontPt=Math.max(8.5, blankH*0.95);
+    const tx=makeText(v, fontPt);
+    const png=await doc.embedPng(await fetch(tx.url).then(r=>r.arrayBuffer()));
+    let drawW=tx.wpt, drawH=tx.hpt, descPt=tx.descPt;
+    const maxW=(b.x1-b.x0);                  // 빈칸 폭을 넘으면 축소
+    if(drawW>maxW){const k=maxW/drawW; drawW*=k; drawH*=k; descPt*=k;}
+    const yBaseline=b.ph-b.bottom+1.5;
+    page.drawImage(png,{x:b.x0, y:yBaseline-descPt, width:drawW, height:drawH});
   }
   // 2) 서명 이미지
   for(const [pStr,list] of Object.entries(placements)){
