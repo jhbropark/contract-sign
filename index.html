@@ -42,6 +42,7 @@
   .resize{position:absolute;right:-7px;bottom:-7px;width:14px;height:14px;background:var(--accent);border:2px solid #fff;border-radius:50%;cursor:nwse-resize;}
   .blank-input{position:absolute;border:none;border-bottom:1.5px solid var(--accent);background:rgba(59,91,253,.06);color:#0c1c6b;font-weight:600;padding:0 2px;border-radius:3px 3px 0 0;outline:none;z-index:3;font-family:inherit;}
   .blank-input:focus{background:rgba(59,91,253,.14);}
+  .blank-input.sign{border-bottom-color:#22a06b;background:rgba(34,160,107,.07);color:#0c5b3a;}
   .page-nav{display:flex;align-items:center;gap:12px;margin-top:8px;font-size:13px;color:var(--muted);flex-wrap:wrap;}
   .hidden{display:none!important;}
   .pill{display:inline-block;background:#eef1ff;color:var(--accent);font-size:12px;padding:2px 10px;border-radius:99px;margin-left:6px;}
@@ -97,7 +98,8 @@
         <div id="sigOverlay" class="hidden"><img id="sigImg" alt="서명"><div class="resize"></div></div>
       </div>
       <div class="btns">
-        <button id="placeSig">서명 배치</button>
+        <button id="autoSig" class="primary" style="background:#22a06b;border-color:#22a06b">서명란에 자동 삽입</button>
+        <button id="placeSig">서명 수동 배치</button>
         <button id="downloadPdf" class="primary">작성·서명된 PDF 다운로드</button>
         <button id="clearForm" class="ghost">입력 내용 전체 지우기</button>
       </div>
@@ -153,19 +155,18 @@ async function loadContract(){pdfBytes=b64ToBytes(CONTRACT_B64).buffer;pdfDoc=aw
 function clearBlankInputs(){stage.querySelectorAll(".blank-input").forEach(n=>n.remove());}
 
 function buildBlankInputs(){
-  const onPage=BLANKS.filter(b=>b.pg===pageNum-1 && !b.sign);
+  const onPage=BLANKS.filter(b=>b.pg===pageNum-1);
   document.getElementById("blankCount").textContent="이 페이지 빈칸 "+onPage.length+"개";
   onPage.forEach(b=>{
     const left=b.x0*renderScale, w=(b.x1-b.x0)*renderScale;
     const lineBottom=b.bottom*renderScale;
-    const h=Math.max(20,(b.bottom-b.top)*renderScale*1.7);
+    const h=Math.max(18,(b.bottom-b.top)*renderScale*2.0);
     const inp=document.createElement("input");
-    inp.type="text"; inp.className="blank-input"; inp.dataset.id=b.id;
-    inp.placeholder=b.label;
-    inp.title=b.label;
+    inp.type="text"; inp.className="blank-input"+(b.sign?" sign":""); inp.dataset.id=b.id;
+    inp.placeholder=b.label; inp.title=b.label;
     inp.style.left=left+"px"; inp.style.width=w+"px";
-    inp.style.height=h+"px"; inp.style.top=(lineBottom-h+3)+"px";
-    inp.style.fontSize=Math.min(h*0.62,15)+"px";
+    inp.style.height=h+"px"; inp.style.top=(lineBottom-h+2)+"px";
+    inp.style.fontSize=Math.min(h*0.55,14)+"px";
     if(b.date) inp.style.textAlign="center";
     const saved=localStorage.getItem(LS_PREFIX+b.id);
     if(saved!=null) inp.value=saved;
@@ -194,6 +195,26 @@ function drawPlaced(page){const list=placements[pageNum]||[];const vp1=page.getV
 document.getElementById("prevPage").onclick=()=>{if(pageNum>1){commitOverlay();pageNum--;renderPage();}};
 document.getElementById("nextPage").onclick=()=>{if(pageNum<pageCount){commitOverlay();pageNum++;renderPage();}};
 
+document.getElementById("autoSig").onclick=()=>{
+  if(!sigDataURL){alert("먼저 ① 서명 그리기 탭에서 서명을 그리고 '이 서명 사용하기'를 누르세요.");document.querySelector('.tab[data-tab=\"sign\"]').click();return;}
+  const tmp=new Image();
+  tmp.onload=()=>{
+    const aspect=tmp.height/tmp.width;
+    Object.keys(placements).forEach(k=>{placements[k]=placements[k].filter(p=>!p.auto);});
+    let cnt=0;
+    BLANKS.filter(b=>b.sign).forEach(b=>{
+      const bw=b.x1-b.x0; let w=bw*0.92, h=w*aspect; const maxH=(b.bottom-b.top)*3.4;
+      if(h>maxH){h=maxH;w=h/aspect;}
+      const x=b.x0+(bw-w)/2, y=b.ph-b.bottom;
+      (placements[b.pg+1]=placements[b.pg+1]||[]).push({x,y,w,h,dataURL:sigDataURL,auto:true});
+      cnt++;
+    });
+    renderPage();
+    const bd=document.getElementById("sigBadge"); bd.textContent="서명 "+cnt+"곳 삽입됨"; bd.classList.remove("gray");
+    alert(cnt+"곳의 서명란에 서명을 자동 삽입했습니다. 페이지(5·9 등)를 넘겨 확인하고, 필요하면 다운로드하세요.");
+  };
+  tmp.src=sigDataURL;
+};
 document.getElementById("placeSig").onclick=()=>{if(!sigDataURL){alert("먼저 ① 서명 그리기 탭에서 서명을 그리고 '이 서명 사용하기'를 누르세요.");document.querySelector('.tab[data-tab=\"sign\"]').click();return;}const tmp=new Image();tmp.onload=()=>{const w=160,h=w*(tmp.height/tmp.width);overlay.style.left="70px";overlay.style.top=(pdfCanvas.height-h-90)+"px";overlay.style.width=w+"px";overlay.style.height=h+"px";overlay.classList.remove("hidden");};tmp.src=sigDataURL;};
 
 (function(){let mode=null,sx,sy,ox,oy,ow,oh;const resize=overlay.querySelector(".resize");
@@ -205,18 +226,21 @@ window.addEventListener("pointerup",()=>mode=null);})();
 function commitOverlay(){if(overlay.classList.contains("hidden"))return;const left=parseFloat(overlay.style.left),top=parseFloat(overlay.style.top),w=parseFloat(overlay.style.width),h=parseFloat(overlay.style.height);const xPt=left/renderScale,wPt=w/renderScale,hPt=h/renderScale,pageH=pdfCanvas.height/renderScale,yPt=pageH-(top/renderScale)-hPt;(placements[pageNum]=placements[pageNum]||[]).push({x:xPt,y:yPt,w:wPt,h:hPt,dataURL:sigDataURL});overlay.classList.add("hidden");}
 
 /* 텍스트를 투명 PNG로 (pdf-lib 한글 폰트 문제 회피) */
-function makeText(text,fontPt){
-  const SCALE=4, fpx=fontPt*SCALE;
+function makeText(text){
+  const fpx=160;
   const font='600 '+fpx+'px "Malgun Gothic","Apple SD Gothic Neo","Noto Sans KR",sans-serif';
   const mctx=document.createElement("canvas").getContext("2d"); mctx.font=font;
-  const m=mctx.measureText(text);
-  const asc=Math.ceil((m.actualBoundingBoxAscent||fpx*0.8))+2;
-  const desc=Math.ceil((m.actualBoundingBoxDescent||fpx*0.2))+2;
-  const w=Math.max(1,Math.ceil(m.width)+2);
-  const c=document.createElement("canvas"); c.width=w; c.height=asc+desc;
+  const w=Math.max(1,Math.ceil(mctx.measureText(text).width))+8, H=Math.ceil(fpx*1.7);
+  const c=document.createElement("canvas"); c.width=w; c.height=H;
   const cx=c.getContext("2d"); cx.font=font; cx.fillStyle="#0a1b66"; cx.textBaseline="alphabetic";
-  cx.fillText(text,1,asc);
-  return {url:c.toDataURL("image/png"), wpt:w/SCALE, hpt:(asc+desc)/SCALE, descPt:desc/SCALE};
+  cx.fillText(text,4,Math.round(fpx*1.2));
+  const d=cx.getImageData(0,0,w,H).data; let top=H,bot=-1,lft=w,rgt=-1;
+  for(let y=0;y<H;y++)for(let x=0;x<w;x++){if(d[(y*w+x)*4+3]>20){if(y<top)top=y;if(y>bot)bot=y;if(x<lft)lft=x;if(x>rgt)rgt=x;}}
+  if(bot<0) return {url:c.toDataURL(),w:1,h:1};
+  const tw=rgt-lft+1, th=bot-top+1;
+  const tc=document.createElement("canvas"); tc.width=tw; tc.height=th;
+  tc.getContext("2d").drawImage(c,lft,top,tw,th,0,0,tw,th);
+  return {url:tc.toDataURL("image/png"), w:tw, h:th};
 }
 
 document.getElementById("clearForm").onclick=()=>{
@@ -232,19 +256,16 @@ document.getElementById("downloadPdf").onclick=async()=>{
   const pages=doc.getPages();
   // 1) 빈칸 텍스트 스탬프
   for(const b of BLANKS){
-    if(b.sign) continue;
     const v=(localStorage.getItem(LS_PREFIX+b.id)||"").trim();
     if(!v) continue;
     const page=pages[b.pg];
     const blankH=b.bottom-b.top;            // pt
-    const fontPt=Math.max(8.5, blankH*0.95);
-    const tx=makeText(v, fontPt);
+    const tx=makeText(v);
     const png=await doc.embedPng(await fetch(tx.url).then(r=>r.arrayBuffer()));
-    let drawW=tx.wpt, drawH=tx.hpt, descPt=tx.descPt;
-    const maxW=(b.x1-b.x0);                  // 빈칸 폭을 넘으면 축소
-    if(drawW>maxW){const k=maxW/drawW; drawW*=k; drawH*=k; descPt*=k;}
-    const yBaseline=b.ph-b.bottom+1.5;
-    page.drawImage(png,{x:b.x0, y:yBaseline-descPt, width:drawW, height:drawH});
+    let drawH=blankH*0.8, drawW=drawH*(tx.w/tx.h);
+    const maxW=(b.x1-b.x0);
+    if(drawW>maxW){const k=maxW/drawW; drawW*=k; drawH*=k;}
+    page.drawImage(png,{x:b.x0, y:b.ph-b.bottom+1.5, width:drawW, height:drawH});
   }
   // 2) 서명 이미지
   for(const [pStr,list] of Object.entries(placements)){
