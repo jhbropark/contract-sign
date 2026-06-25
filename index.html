@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>계약서 전자 서명 — sia.haus</title>
+<title>sia.haus, 전속 아티스트 전자계약</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <style>
@@ -52,16 +52,16 @@
 </head>
 <body>
 <header>
-  <h1>계약서 전자 서명</h1>
-  <p>전속 아티스트 계약서 / 근로계약서 (sia.haus). 빈칸을 채우고 서명한 뒤 완성된 PDF를 내려받으세요. 입력 내용은 이 브라우저에 자동 저장됩니다.</p>
+  <h1>sia.haus, 전속 아티스트 전자계약</h1>
+  <p>전속 아티스트 계약서 (sia.haus). 빈칸을 채우고 서명한 뒤 완성된 PDF를 내려받으세요. 입력 내용은 이 브라우저에 자동 저장됩니다.</p>
 </header>
 <div class="wrap">
   <div class="tabs">
-    <div class="tab" data-tab="sign">① 서명 그리기</div>
-    <div class="tab active" data-tab="pdf">② 빈칸 작성 &amp; 서명</div>
+    <div class="tab active" data-tab="sign">1단계 · 서명 만들기</div>
+    <div class="tab" data-tab="pdf">2단계 · 빈칸 작성 &amp; 서명</div>
   </div>
 
-  <section id="tab-sign" class="hidden">
+  <section id="tab-sign">
     <div class="card">
       <h2>서명 패드</h2>
       <div class="controls">
@@ -77,13 +77,13 @@
         <button id="undo" class="ghost">되돌리기</button>
         <button id="clear" class="ghost">지우기</button>
         <button id="savePng" class="ghost">PNG로 저장</button>
-        <button id="useInPdf" class="primary">이 서명 사용하기 →</button>
+        <button id="useInPdf" class="primary">다음: 계약서 작성 →</button>
       </div>
       <p class="hint">점선(x) 위에 서명을 그려주세요. 투명 배경으로 계약서에 삽입됩니다.</p>
     </div>
   </section>
 
-  <section id="tab-pdf">
+  <section id="tab-pdf" class="hidden">
     <div class="card">
       <h2>계약서 <span id="sigBadge" class="pill gray">서명 미작성</span></h2>
       <div class="page-nav">
@@ -91,19 +91,20 @@
         <span><b id="curPage">1</b> / <span id="totPage">-</span> 페이지</span>
         <button id="nextPage" class="ghost">다음 ▶</button>
         <span id="blankCount" class="pill gray">빈칸 -</span>
-        <span style="margin-left:auto">파란 칸을 클릭해 입력하세요. 서명란은 ② 하단의 '서명 배치'를 사용하세요.</span>
+        <span style="margin-left:auto">파란 칸을 클릭해 입력하세요.</span>
       </div>
       <div class="pdf-stage">
         <canvas id="pdfCanvas"></canvas>
         <div id="sigOverlay" class="hidden"><img id="sigImg" alt="서명"><div class="resize"></div></div>
       </div>
       <div class="btns">
+        <button id="backToSign" class="ghost">← 1단계(서명)</button>
         <button id="autoSig" class="primary" style="background:#22a06b;border-color:#22a06b">서명란에 자동 삽입</button>
         <button id="placeSig">서명 수동 배치</button>
         <button id="downloadPdf" class="primary">작성·서명된 PDF 다운로드</button>
         <button id="clearForm" class="ghost">입력 내용 전체 지우기</button>
       </div>
-      <p class="legend">빈칸(파란색)은 자동으로 표시되며 입력값은 자동 저장됩니다. 서명은 ① 탭에서 그린 뒤 '서명 배치'로 원하는 위치에 놓고 크기를 조절하세요.</p>
+      <p class="legend">빈칸(파란색)은 자동으로 표시되며 입력값은 자동 저장됩니다. 서명은 1단계에서 그린 뒤 '서명란에 자동 삽입'을 누르거나 '서명 수동 배치'로 위치를 조절하세요.</p>
     </div>
   </section>
 </div>
@@ -146,7 +147,8 @@ fitCanvas();
 let pdfBytes=null,pdfDoc=null,pageNum=1,pageCount=1,renderScale=1,placements={},sigDataURL=null;
 const pdfCanvas=document.getElementById("pdfCanvas"),pctx=pdfCanvas.getContext("2d"),overlay=document.getElementById("sigOverlay"),sigImg=document.getElementById("sigImg"),stage=document.querySelector(".pdf-stage");
 
-document.getElementById("useInPdf").onclick=()=>{const u=signatureDataURL();if(!u){alert("먼저 서명을 그려주세요.");return;}sigDataURL=u;sigImg.src=u;const b=document.getElementById("sigBadge");b.textContent="서명 준비됨";b.classList.remove("gray");document.querySelector('.tab[data-tab="pdf"]').click();};
+document.getElementById("useInPdf").onclick=()=>{const u=signatureDataURL();if(u){sigDataURL=u;sigImg.src=u;const b=document.getElementById("sigBadge");b.textContent="서명 준비됨";b.classList.remove("gray");}document.querySelector('.tab[data-tab="pdf"]').click();};
+document.getElementById("backToSign").onclick=()=>document.querySelector('.tab[data-tab="sign"]').click();
 
 function b64ToBytes(b64){const bin=atob(b64),len=bin.length,bytes=new Uint8Array(len);for(let i=0;i<len;i++)bytes[i]=bin.charCodeAt(i);return bytes;}
 
